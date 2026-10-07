@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Hotspot Manager</string>
+    <string name="tab_dashboard">Surveillance</string>
+    <string name="tab_devices">Appareils</string>
+    <string name="tab_firewall">Contrôle &amp; Règles</string>
+    <string name="tab_tools">Infinix &amp; Outils</string>
+</resources>

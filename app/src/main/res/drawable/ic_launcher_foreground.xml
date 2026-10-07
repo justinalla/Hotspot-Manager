@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center Dot / Beacon -->
+    <path
+        android:pathData="M54,64m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0"
+        android:fillColor="#00E5FF" />
+
+    <!-- Innermost Wave -->
+    <path
+        android:pathData="M44.5,56 C49.8,51.8 58.2,51.8 63.5,56"
+        android:strokeWidth="3.6"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Middle Wave -->
+    <path
+        android:pathData="M37.5,49 C46.7,42.5 61.3,42.5 70.5,49"
+        android:strokeWidth="3.8"
+        android:strokeColor="#38BDF8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Outermost Wave -->
+    <path
+        android:pathData="M30.5,42 C43.5,33.5 64.5,33.5 77.5,42"
+        android:strokeWidth="4.0"
+        android:strokeColor="#60A5FA"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Protective Shield Emblem at bottom -->
+    <path
+        android:pathData="M54,67 L68,73 C68,81 62,87 54,90 C46,87 40,81 40,73 Z"
+        android:strokeWidth="1.8"
+        android:strokeColor="#38BDF8">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="40"
+                android:startY="67"
+                android:endX="68"
+                android:endY="90"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#1E3A8A" />
+                <item android:offset="1.0" android:color="#0F172A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Speed Lightning Bolt inside Shield -->
+    <path
+        android:pathData="M55,71 L49,79 L53.5,79 L52.5,85 L59,77 L54.5,77 Z"
+        android:fillColor="#38BDF8" />
+</vector>

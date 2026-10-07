@@ -1,0 +1,6 @@
+{
+  "name": "Hotspot Manager",
+  "description": "Gestionnaire de point d'accès Wi-Fi pour Infinix Hot 9 (Android 10) : surveillance du trafic réseau en temps réel, limitation de la bande passante et blocage des appareils connectés.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
