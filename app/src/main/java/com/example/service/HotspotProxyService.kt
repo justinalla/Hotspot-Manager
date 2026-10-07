@@ -25,6 +25,7 @@ class HotspotProxyService : Service() {
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var proxyServer: HotspotProxyServer? = null
+    private var dnsFilterServer: DnsFilterServer? = null
 
     companion object {
         const val ACTION_START = "com.example.service.START_PROXY"
@@ -127,8 +128,11 @@ class HotspotProxyService : Service() {
             proxyServer = HotspotProxyServer(PROXY_PORT, serviceScope)
             proxyServer?.start()
 
+            dnsFilterServer = DnsFilterServer(serviceScope)
+            dnsFilterServer?.start()
+
             _isProxyRunning.value = true
-            Log.i(tag, "Hotspot Proxy Gateway started on port $PROXY_PORT")
+            Log.i(tag, "Hotspot Proxy & DNS Gateway started on port $PROXY_PORT / DNS ${dnsFilterServer?.boundPort}")
         } catch (e: Exception) {
             Log.e(tag, "Error starting Proxy service: ${e.message}")
             stopSelf()
@@ -139,6 +143,8 @@ class HotspotProxyService : Service() {
         _isProxyRunning.value = false
         proxyServer?.stop()
         proxyServer = null
+        dnsFilterServer?.stop()
+        dnsFilterServer = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         Log.i(tag, "Hotspot Proxy Gateway stopped")

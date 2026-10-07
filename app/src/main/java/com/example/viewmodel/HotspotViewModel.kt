@@ -16,6 +16,7 @@ import com.example.model.DeviceType
 import com.example.model.HotspotState
 import com.example.model.TrafficSample
 import com.example.scanner.SubnetScanner
+import com.example.service.DnsFilterServer
 import com.example.service.HotspotProxyService
 import com.example.service.HotspotVpnService
 import com.example.service.IptablesController
@@ -373,12 +374,80 @@ class HotspotViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    val dnsLogs = DnsFilterServer.dnsLogs
+    val blockAds = DnsFilterServer.blockAds
+    val blockSocial = DnsFilterServer.blockSocial
+    val blockAdult = DnsFilterServer.blockAdult
+    val customBlacklist = DnsFilterServer.customBlacklist
+
     private fun loadSavedRules() {
         val blockedSet = prefs.getStringSet("blocked_ips", emptySet()) ?: emptySet()
         blockedSet.forEach { ip ->
             HotspotVpnService.blockIp(ip)
             HotspotProxyService.blockIp(ip)
         }
+
+        // Load DNS filtering preferences
+        DnsFilterServer.blockAds.value = prefs.getBoolean("dns_block_ads", true)
+        DnsFilterServer.blockSocial.value = prefs.getBoolean("dns_block_social", false)
+        DnsFilterServer.blockAdult.value = prefs.getBoolean("dns_block_adult", false)
+
+        val blacklistSet = prefs.getStringSet("dns_blacklist", emptySet()) ?: emptySet()
+        blacklistSet.forEach { DnsFilterServer.addDomainToBlacklist(it) }
+    }
+
+    fun toggleBlockAds() {
+        val newVal = !DnsFilterServer.blockAds.value
+        DnsFilterServer.blockAds.value = newVal
+        prefs.edit().putBoolean("dns_block_ads", newVal).apply()
+        viewModelScope.launch {
+            _toastEvent.emit(if (newVal) "Blocage des publicités et traqueurs activé" else "Blocage des pubs désactivé")
+        }
+    }
+
+    fun toggleBlockSocial() {
+        val newVal = !DnsFilterServer.blockSocial.value
+        DnsFilterServer.blockSocial.value = newVal
+        prefs.edit().putBoolean("dns_block_social", newVal).apply()
+        viewModelScope.launch {
+            _toastEvent.emit(if (newVal) "Blocage des réseaux sociaux activé (TikTok, Insta, etc.)" else "Réseaux sociaux autorisés")
+        }
+    }
+
+    fun toggleBlockAdult() {
+        val newVal = !DnsFilterServer.blockAdult.value
+        DnsFilterServer.blockAdult.value = newVal
+        prefs.edit().putBoolean("dns_block_adult", newVal).apply()
+        viewModelScope.launch {
+            _toastEvent.emit(if (newVal) "Contrôle parental activé (Sites adultes bloqués)" else "Contrôle parental désactivé")
+        }
+    }
+
+    fun addCustomBlacklistDomain(domain: String) {
+        val clean = domain.trim().lowercase()
+        if (clean.isBlank()) return
+        DnsFilterServer.addDomainToBlacklist(clean)
+        val current = prefs.getStringSet("dns_blacklist", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        current.add(clean)
+        prefs.edit().putStringSet("dns_blacklist", current).apply()
+        viewModelScope.launch {
+            _toastEvent.emit("Domaine '$clean' ajouté à la liste noire DNS")
+        }
+    }
+
+    fun removeCustomBlacklistDomain(domain: String) {
+        val clean = domain.trim().lowercase()
+        DnsFilterServer.removeDomainFromBlacklist(clean)
+        val current = prefs.getStringSet("dns_blacklist", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        current.remove(clean)
+        prefs.edit().putStringSet("dns_blacklist", current).apply()
+        viewModelScope.launch {
+            _toastEvent.emit("Domaine '$clean' retiré de la liste noire")
+        }
+    }
+
+    fun clearDnsLogs() {
+        DnsFilterServer.clearLogs()
     }
 
     fun toggleProxyService(context: Context) {

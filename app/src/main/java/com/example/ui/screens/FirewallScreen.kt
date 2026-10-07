@@ -22,10 +22,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -41,6 +44,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -66,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ConnectedDevice
+import com.example.model.DnsLogEntry
 import com.example.service.IptablesController
 import com.example.ui.components.formatBytes
 import com.example.ui.theme.CyberAmber
@@ -80,6 +86,9 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.viewmodel.HotspotViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun FirewallScreen(
@@ -92,8 +101,14 @@ fun FirewallScreen(
     val devices by viewModel.devices.collectAsState()
     val rootLog by viewModel.rootExecutionLog.collectAsState()
 
+    val dnsLogs by viewModel.dnsLogs.collectAsState()
+    val blockAds by viewModel.blockAds.collectAsState()
+    val blockSocial by viewModel.blockSocial.collectAsState()
+    val blockAdult by viewModel.blockAdult.collectAsState()
+
     var selectedTab by remember { mutableIntStateOf(0) }
-    var showInstructions by remember { mutableStateOf(true) }
+    var showInstructions by remember { mutableStateOf(false) }
+    var newBlacklistDomain by remember { mutableStateOf("") }
 
     val proxyHost = hotspotState.gatewayIp
     val proxyPort = hotspotState.proxyPort
@@ -105,7 +120,7 @@ fun FirewallScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Hero Card: Serveur Proxy Passerelle Zero-Root
+        // Hero Card: Serveur Proxy & Passerelle DNS Zero-Root
         item {
             Card(
                 modifier = Modifier
@@ -145,7 +160,7 @@ fun FirewallScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "SERVEUR PROXY LOCAL",
+                                    text = "PASSERELLE ZERO-ROOT",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.sp
@@ -153,7 +168,7 @@ fun FirewallScreen(
                                     color = if (hotspotState.isProxyActive) CyberEmerald else TextMuted
                                 )
                                 Text(
-                                    text = "Passerelle Zero-Root (Port $proxyPort)",
+                                    text = "Serveur Proxy & Filtrage DNS",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = TextPrimary
                                 )
@@ -186,13 +201,13 @@ fun FirewallScreen(
                     ) {
                         Column {
                             Text(
-                                text = "Paramètres de connexion Proxy :",
+                                text = "Paramètres Proxy & DNS Passerelle :",
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                 color = TextMuted
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Hôte : $proxyHost  |  Port : $proxyPort",
+                                text = "Hôte : $proxyHost  |  Proxy : $proxyPort  |  DNS : 53",
                                 style = MaterialTheme.typography.titleSmall.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold
@@ -226,7 +241,7 @@ fun FirewallScreen(
             }
         }
 
-        // Instructions Card for Client Device Configuration
+        // Instructions Card for Client Device Configuration (Accordion)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -304,7 +319,7 @@ fun FirewallScreen(
             }
         }
 
-        // Section Tabs: Bloqués par Proxy | Débits Limités | Terminal Root (Optionnel)
+        // Section Tabs: Bloqués (X) | Limités (X) | Filtrage DNS & Journal | Mode Root
         item {
             TabRow(
                 selectedTabIndex = selectedTab,
@@ -327,7 +342,8 @@ fun FirewallScreen(
                         Text(
                             text = "Bloqués (${devices.count { it.isBlocked }})",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp
                             )
                         )
                     }
@@ -339,7 +355,8 @@ fun FirewallScreen(
                         Text(
                             text = "Limités (${devices.count { it.bandwidthLimitKbps != null && !it.isBlocked }})",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp
                             )
                         )
                     }
@@ -349,9 +366,23 @@ fun FirewallScreen(
                     onClick = { selectedTab = 2 },
                     text = {
                         Text(
-                            text = "Mode Root (IPTables)",
+                            text = "Filtre DNS",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = {
+                        Text(
+                            text = "Root",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp
                             )
                         )
                     }
@@ -405,6 +436,297 @@ fun FirewallScreen(
                 }
             }
             2 -> {
+                // TAB 2: FILTRAGE DNS TRANSPARENT & JOURNAL EN DIRECT
+                item {
+                    // Category Filters Card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CyberSurfaceElevated),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(CyberBorder.copy(alpha = 0.5f))
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Dns,
+                                    contentDescription = null,
+                                    tint = CyberCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "FILTRAGE DNS PAR CATÉGORIES (SINKHOLE)",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = TextPrimary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Interception transparente sur le port 53. Les domaines bloqués sont redirigés vers 0.0.0.0 sans configuration sur les appareils invités.",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextMuted
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Switch 1: Ads & Trackers
+                            DnsCategoryRow(
+                                title = "🛡️ Bloqueur de Publicités & Traqueurs",
+                                description = "Bloque Google Ads, DoubleClick, UnityAds, AppLovin, etc.",
+                                isChecked = blockAds,
+                                onCheckedChange = { viewModel.toggleBlockAds() }
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Switch 2: Social Media
+                            DnsCategoryRow(
+                                title = "📱 Bloquer Réseaux Sociaux",
+                                description = "Bloque TikTok, Instagram, Facebook, Snapchat, X...",
+                                isChecked = blockSocial,
+                                onCheckedChange = { viewModel.toggleBlockSocial() }
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Switch 3: Adult Content
+                            DnsCategoryRow(
+                                title = "🔞 Contrôle Parental (Sites Adultes)",
+                                description = "Filtre les sites pornographiques et contenus explicites",
+                                isChecked = blockAdult,
+                                onCheckedChange = { viewModel.toggleBlockAdult() }
+                            )
+                        }
+                    }
+                }
+
+                // Custom Blacklist Card
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CyberSurfaceElevated),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(CyberBorder.copy(alpha = 0.5f))
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "LISTE NOIRE DE DOMAINES PERSONNALISÉE",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Ajoutez un domaine spécifique à bloquer pour tout le point d'accès (ex. youtube.com, roblox.com).",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = TextMuted
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = newBlacklistDomain,
+                                    onValueChange = { newBlacklistDomain = it },
+                                    placeholder = { Text("ex. youtube.com", style = MaterialTheme.typography.bodySmall) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = CyberCyan,
+                                        unfocusedBorderColor = CyberBorder
+                                    )
+                                )
+
+                                Button(
+                                    onClick = {
+                                        if (newBlacklistDomain.isNotBlank()) {
+                                            viewModel.addCustomBlacklistDomain(newBlacklistDomain)
+                                            newBlacklistDomain = ""
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyberCyan, contentColor = CyberSurface),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Bloquer", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                                }
+                            }
+
+                            // Show current custom blacklisted domains
+                            val blacklist = viewModel.customBlacklist
+                            if (blacklist.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Domaines actuellement bloqués :",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    blacklist.forEach { domain ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(CyberSurfaceVariant, RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = domain,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = CyberCrimson
+                                            )
+                                            IconButton(
+                                                onClick = { viewModel.removeCustomBlacklistDomain(domain) },
+                                                modifier = Modifier.size(22.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Clear,
+                                                    contentDescription = "Supprimer",
+                                                    tint = TextMuted,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Live DNS Query Stream Card
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CyberSurfaceElevated),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(CyberBorder.copy(alpha = 0.5f))
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(CyberEmerald, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "JOURNAL DNS EN DIRECT (${dnsLogs.size})",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = TextPrimary
+                                    )
+                                }
+
+                                if (dnsLogs.isNotEmpty()) {
+                                    Text(
+                                        text = "Effacer",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = CyberCyan,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        modifier = Modifier.clickable { viewModel.clearDnsLogs() }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            if (dnsLogs.isEmpty()) {
+                                Text(
+                                    text = "En attente de requêtes DNS des appareils connectés...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            } else {
+                                val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    dnsLogs.take(30).forEach { log ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(CyberSurface, RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = timeFormat.format(Date(log.timestamp)),
+                                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                                        color = TextMuted
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = log.clientIp,
+                                                        style = MaterialTheme.typography.bodySmall.copy(
+                                                            fontFamily = FontFamily.Monospace,
+                                                            fontSize = 10.sp
+                                                        ),
+                                                        color = TextSecondary
+                                                    )
+                                                }
+                                                Text(
+                                                    text = log.domain,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.sp
+                                                    ),
+                                                    color = if (log.isBlocked) CyberCrimson else TextPrimary,
+                                                    maxLines = 1
+                                                )
+                                            }
+
+                                            Surface(
+                                                color = if (log.isBlocked) CyberCrimson.copy(alpha = 0.15f) else CyberEmerald.copy(alpha = 0.15f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (log.isBlocked) (log.reason.ifBlank { "BLOQUÉ" }) else "AUTORISÉ",
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 9.sp
+                                                    ),
+                                                    color = if (log.isBlocked) CyberCrimson else CyberEmerald,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            3 -> {
                 // Root & ADB IPTables Console
                 item {
                     RootTerminalCard(
@@ -419,6 +741,47 @@ fun FirewallScreen(
         item {
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun DnsCategoryRow(
+    title: String,
+    description: String,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CyberSurfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                color = TextPrimary
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                color = TextSecondary
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = CyberEmerald,
+                checkedTrackColor = CyberEmerald.copy(alpha = 0.35f),
+                uncheckedThumbColor = TextMuted,
+                uncheckedTrackColor = CyberSurface
+            )
+        )
     }
 }
 
@@ -497,7 +860,7 @@ private fun BlockedDeviceRow(
                         color = TextPrimary
                     )
                     Text(
-                        text = "Bloqué par Proxy • ${device.ipAddress}",
+                        text = "Bloqué par Proxy / DNS • ${device.ipAddress}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp

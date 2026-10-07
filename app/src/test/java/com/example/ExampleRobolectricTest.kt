@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.model.DeviceType
 import com.example.scanner.MacVendorResolver
+import com.example.service.DnsFilterServer
 import com.example.service.HotspotProxyService
 import com.example.service.IptablesController
 import org.junit.Assert.assertEquals
@@ -60,5 +61,17 @@ class ExampleRobolectricTest {
         HotspotProxyService.setQuota(testIp, 1000L)
         HotspotProxyService.addBytesUsed(testIp, 1200L)
         assertTrue(HotspotProxyService.isQuotaExceeded(testIp))
+    }
+
+    @Test
+    fun `test dns filter blacklist and categories`() {
+        DnsFilterServer.addDomainToBlacklist("tiktok.com")
+        assertTrue(DnsFilterServer.customBlacklist.contains("tiktok.com"))
+
+        DnsFilterServer.removeDomainFromBlacklist("tiktok.com")
+        assertFalse(DnsFilterServer.customBlacklist.contains("tiktok.com"))
+
+        DnsFilterServer.blockAds.value = true
+        assertTrue(DnsFilterServer.blockAds.value)
     }
 }
